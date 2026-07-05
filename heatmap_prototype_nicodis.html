@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Nicodis — Heatmap & Recommandations (concept)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@700;900&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+  :root{
+    --paper:#EEF0EA; --panel:#fff; --ink:#1E2A3A; --soft:#5B6472; --line:#DCDFD3;
+    --gold:#C9A036; --event:#B5533C; --reassort:#4C7A4A; --personnel:#7A5C7E;
+  }
+  *{ box-sizing:border-box; }
+  body{ margin:0; font-family:'Inter', sans-serif; background:var(--paper); color:var(--ink); }
+  .app{ max-width:980px; margin:0 auto; padding:26px; }
+
+  .badge-concept{
+    display:inline-block; font-family:'IBM Plex Mono', monospace; font-size:10px; background:var(--ink); color:#fff;
+    padding:4px 9px; border-radius:3px; letter-spacing:.05em; margin-bottom:10px;
+  }
+  h1{ font-family:'Fraunces', serif; font-weight:900; font-size:24px; margin:0 0 4px; }
+  .sub{ font-size:12.5px; color:var(--soft); margin-bottom:20px; max-width:560px; line-height:1.5; }
+
+  .layout{ display:grid; grid-template-columns:1fr 300px; gap:18px; align-items:start; }
+  @media (max-width:760px){ .layout{ grid-template-columns:1fr; } }
+  .right-col{ display:flex; flex-direction:column; gap:14px; }
+
+  .store{
+    display:grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: 70px 100px 100px 90px;
+    gap:6px;
+    background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px;
+  }
+  .zone{
+    border-radius:6px; display:flex; flex-direction:column; justify-content:space-between;
+    padding:8px 10px; cursor:pointer; border:2px solid transparent; transition:transform .1s;
+    color:var(--ink);
+  }
+  .zone:hover{ transform:scale(1.015); }
+  .zone.selected{ border-color:var(--ink); }
+  .zone-name{ font-size:11px; font-weight:600; }
+  .zone-score{ font-family:'IBM Plex Mono', monospace; font-size:18px; font-weight:600; align-self:flex-end; }
+
+  .z-entree{ grid-column:1/3; grid-row:1; }
+  .z-caisses{ grid-column:3/5; grid-row:1; }
+  .z-fruits{ grid-column:1/2; grid-row:2; }
+  .z-boulangerie{ grid-column:2/3; grid-row:2; }
+  .z-tete{ grid-column:3/4; grid-row:2; }
+  .z-boissons{ grid-column:4/5; grid-row:2/4; }
+  .z-epicerie{ grid-column:1/3; grid-row:3; }
+  .z-boucherie{ grid-column:3/4; grid-row:3; }
+  .z-fond{ grid-column:1/4; grid-row:4; }
+
+  .legend{ display:flex; align-items:center; gap:10px; margin-top:12px; font-size:11px; color:var(--soft); }
+  .scale{ width:120px; height:8px; border-radius:4px; background:linear-gradient(to right, #DCE4D8, var(--gold), var(--event)); }
+
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  .panel-title{ font-family:'Fraunces', serif; font-weight:700; font-size:16px; margin-bottom:2px; }
+  .panel-score{ font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--soft); margin-bottom:14px; }
+
+  .reco{ border-left:3px solid var(--line); padding:8px 10px; margin-bottom:8px; border-radius:0 4px 4px 0; background:#FAFAF6; }
+  .reco-tag{ font-family:'IBM Plex Mono', monospace; font-size:9px; text-transform:uppercase; letter-spacing:.06em; font-weight:600; margin-bottom:3px; }
+  .reco-text{ font-size:12.5px; }
+  .reco.promo{ border-left-color:var(--gold); } .reco.promo .reco-tag{ color:var(--gold); }
+  .reco.peremption{ border-left-color:var(--event); } .reco.peremption .reco-tag{ color:var(--event); }
+  .reco.affluence{ border-left-color:var(--reassort); } .reco.affluence .reco-tag{ color:var(--reassort); }
+
+  .placeholder{ font-size:12.5px; color:var(--soft); font-style:italic; }
+
+  /* ---- Détail de rayon ---- */
+  .rayon-detail{ margin-top:18px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px; display:none; }
+  .rayon-detail.open{ display:block; }
+  .rd-title{ font-family:'Fraunces', serif; font-weight:700; font-size:16px; margin-bottom:2px; }
+  .rd-sub{ font-size:11.5px; color:var(--soft); margin-bottom:14px; }
+
+  .subzones{ display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:16px; }
+  .subzone{ border-radius:7px; padding:10px; border:1px solid rgba(0,0,0,.06); }
+  .subzone-name{ font-size:10.5px; font-weight:600; margin-bottom:2px; }
+  .subzone-score{ font-family:'IBM Plex Mono', monospace; font-size:15px; font-weight:600; margin-bottom:6px; }
+  .subzone-reco{ font-size:11px; color:var(--ink); background:rgba(255,255,255,.55); border-radius:4px; padding:5px 7px; }
+  .subzone-reco .rt{ font-family:'IBM Plex Mono', monospace; font-size:8.5px; text-transform:uppercase; letter-spacing:.06em; font-weight:700; display:block; margin-bottom:2px; opacity:.75; }
+
+  .comment-block label{ font-family:'IBM Plex Mono', monospace; font-size:9.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--soft); display:block; margin-bottom:6px; }
+  .comment-block textarea{
+    width:100%; min-height:64px; border:1px solid var(--line); border-radius:6px; padding:8px 10px;
+    font-family:'Inter', sans-serif; font-size:12.5px; resize:vertical; color:var(--ink);
+  }
+  .comment-row{ display:flex; justify-content:space-between; align-items:center; margin-top:8px; }
+  .comment-row button{
+    font-family:'IBM Plex Mono', monospace; font-size:11px; background:var(--ink); color:#fff; border:none;
+    padding:7px 14px; border-radius:5px; cursor:pointer;
+  }
+  .comment-row button:hover{ opacity:.9; }
+  .comment-status{ font-size:11px; color:var(--reassort); font-style:italic; }
+
+  .comment-log{ margin-top:10px; display:flex; flex-direction:column; gap:6px; }
+  .comment-entry{ font-size:11.5px; background:#FAFAF6; border-left:3px solid var(--personnel); padding:6px 9px; border-radius:0 4px 4px 0; }
+  .comment-entry .ce-meta{ font-family:'IBM Plex Mono', monospace; font-size:9px; color:var(--soft); margin-bottom:2px; }
+
+  /* ---- Alertes stock globales ---- */
+  .alerts-bar{
+    display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--line);
+    border-radius:8px; padding:10px 14px; margin-bottom:16px; cursor:pointer;
+  }
+  .alerts-count{
+    font-family:'IBM Plex Mono', monospace; font-weight:700; font-size:13px; background:var(--event);
+    color:#fff; border-radius:12px; padding:2px 10px; min-width:20px; text-align:center;
+  }
+  .alerts-count.zero{ background:var(--reassort); }
+  .alerts-bar-label{ font-size:12px; color:var(--soft); }
+  .alerts-list{ margin-top:10px; display:none; flex-direction:column; gap:6px; }
+  .alerts-list.open{ display:flex; }
+  .alert-entry{ font-size:11.5px; background:#FAFAF6; border-left:3px solid var(--event); padding:6px 9px; border-radius:0 4px 4px 0; }
+  .alert-entry .ae-meta{ font-family:'IBM Plex Mono', monospace; font-size:9px; color:var(--soft); }
+
+  /* ---- Stock ---- */
+  .stock-section{ margin-top:16px; }
+  .stock-section-title{ font-family:'IBM Plex Mono', monospace; font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--soft); margin-bottom:8px; }
+  .stock-item{ display:grid; grid-template-columns:1fr auto auto auto; gap:10px; align-items:center; padding:8px 10px; border-bottom:1px solid var(--line); font-size:12px; }
+  .stock-item:last-child{ border-bottom:none; }
+  .stock-name{ font-weight:500; }
+  .stock-loc{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--soft); white-space:nowrap; }
+  .stock-qty{ font-family:'IBM Plex Mono', monospace; font-size:11.5px; white-space:nowrap; }
+  .stock-badge{ font-size:9.5px; font-family:'IBM Plex Mono', monospace; padding:2px 7px; border-radius:10px; white-space:nowrap; }
+  .stock-badge.ok{ background:var(--reassort); color:#fff; }
+  .stock-badge.bas{ background:var(--gold); color:#fff; }
+  .stock-badge.rupture{ background:var(--event); color:#fff; }
+  .stock-item.priority{ background:#FBEDE7; border-radius:6px; border-bottom-color:transparent; }
+  .priority-flag{
+    font-family:'IBM Plex Mono', monospace; font-size:9.5px; font-weight:700; color:var(--event);
+    display:block; margin-top:2px;
+  }
+  .signal-btn{
+    font-family:'IBM Plex Mono', monospace; font-size:10px; background:#fff; border:1px solid var(--event);
+    color:var(--event); padding:4px 9px; border-radius:5px; cursor:pointer; white-space:nowrap;
+  }
+  .signal-btn:hover{ background:var(--event); color:#fff; }
+  .signal-btn.done{ background:var(--soft); border-color:var(--soft); color:#fff; cursor:default; }
+
+  .future-note{ margin-top:14px; font-size:11px; color:var(--soft); font-style:italic; border-top:1px dashed var(--line); padding-top:10px; }
+
+  /* ---- Mini-calendrier ---- */
+  .mini-calendar{
+    display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;
+  }
+  .mc-title{
+    font-family:'IBM Plex Mono', monospace; font-size:9.5px; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--soft); width:100%; margin-bottom:2px;
+  }
+  .mc-chip{
+    background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--event);
+    border-radius:6px; padding:6px 10px; font-size:11px; min-width:150px;
+  }
+  .mc-chip.next{ background:#FBEDE7; }
+  .mc-chip .mc-date{ font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--soft); }
+  .mc-chip .mc-name{ font-weight:600; margin:1px 0; }
+  .mc-chip .mc-count{ font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--event); font-weight:700; }
+
+  footer{ margin-top:18px; font-family:'IBM Plex Mono', monospace; font-size:9.5px; color:var(--soft); }
+
+  /* ---- Planning manager (jour / semaine / mois) ---- */
+  .manager-calendar{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .mc-header{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+  .mc-header h2{ font-family:'Fraunces', serif; font-size:14px; font-weight:700; margin:0; }
+  .mc-controls{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .view-toggle{ display:flex; gap:3px; background:var(--paper); border-radius:6px; padding:3px; }
+  .view-toggle button{ border:none; background:transparent; padding:4px 8px; font-family:'IBM Plex Mono', monospace; font-size:10px; border-radius:4px; cursor:pointer; color:var(--soft); }
+  .view-toggle button.active{ background:var(--ink); color:#fff; }
+  .cal-nav{ display:flex; align-items:center; justify-content:space-between; gap:6px; font-family:'IBM Plex Mono', monospace; font-size:11px; margin-bottom:10px; }
+  .cal-nav button{ width:22px; height:22px; border-radius:50%; border:1px solid var(--line); background:#fff; cursor:pointer; flex-shrink:0; }
+  .cal-nav button:hover{ background:var(--gold-soft, #F3E7C8); }
+  .cal-label{ flex:1; text-align:center; font-weight:600; font-size:10.5px; }
+
+  .cal-weekdays{ display:grid; grid-template-columns:repeat(7,1fr); font-family:'IBM Plex Mono', monospace; font-size:8.5px; text-transform:uppercase; color:var(--soft); margin-bottom:4px; }
+  .cal-weekdays span{ text-align:center; }
+  .cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+  .cal-day{ min-height:36px; border:1px solid var(--line); border-radius:5px; padding:3px 4px; cursor:pointer; font-size:9.5px; position:relative; background:#fff; }
+  .cal-day:hover{ background:var(--gold-soft, #F3E7C8); }
+  .cal-day.today{ border-color:var(--ink); border-width:2px; }
+  .cal-day.has-event{ background:#FBEDE7; }
+  .cal-day.empty{ background:#FAFAF6; border-color:transparent; cursor:default; }
+  .cal-day .cd-num{ font-family:'IBM Plex Mono', monospace; font-weight:600; font-size:10px; }
+  .cal-day .cd-event-label{ display:none; }
+  .cal-day.has-event::after{ content:"●"; color:var(--event); font-size:7px; position:absolute; top:4px; right:5px; }
+  .cal-day .cd-todo-count{ position:absolute; bottom:2px; right:3px; font-family:'IBM Plex Mono', monospace; font-size:7.5px; background:var(--gold); color:#fff; border-radius:7px; padding:0 4px; }
+
+  .cal-week-grid{ display:flex; flex-direction:column; gap:6px; }
+  .cal-week-col{ border:1px solid var(--line); border-radius:6px; padding:8px; }
+  .cal-week-col.today{ border-color:var(--ink); border-width:2px; }
+  .cal-week-col.has-event{ background:#FBEDE7; }
+  .cwc-date{ font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--soft); margin-bottom:4px; font-weight:600; }
+  .cwc-event{ font-size:9.5px; color:var(--event); font-weight:600; margin-bottom:6px; }
+
+  .day-view{ max-width:100%; }
+  .dv-date{ font-family:'Fraunces', serif; font-weight:700; font-size:14px; margin-bottom:2px; }
+  .dv-event{ font-size:11px; color:var(--event); font-weight:600; margin-bottom:10px; }
+
+  .todo-item{ display:flex; align-items:flex-start; gap:6px; font-size:11px; padding:3px 0; }
+  .todo-item input[type=checkbox]{ margin-top:2px; flex-shrink:0; }
+  .todo-item.done .todo-text{ text-decoration:line-through; color:var(--soft); }
+  .todo-add{ display:flex; gap:5px; margin-top:8px; }
+  .todo-add input{ flex:1; border:1px solid var(--line); border-radius:5px; padding:5px 7px; font-size:11px; font-family:'Inter', sans-serif; min-width:0; }
+  .todo-add button{ font-family:'IBM Plex Mono', monospace; font-size:9.5px; background:var(--ink); color:#fff; border:none; border-radius:5px; padding:5px 8px; cursor:pointer; white-space:nowrap; }
+  .todo-empty{ font-size:10.5px; color:var(--soft); font-style:italic; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <span class="badge-concept">CONCEPT — PAS ENCORE UN VRAI MODÈLE</span>
+  <h1>Heatmap de rayon & recommandations</h1>
+  <p class="sub">Aperçu du principe : chaque zone du magasin est colorée selon son affluence estimée.
+  Cliquez sur une zone pour voir ce que l'outil recommanderait d'y mettre en avant — données
+  entièrement fictives, juste pour visualiser l'idée.</p>
+
+  <div class="alerts-bar" id="alertsBar">
+    <span class="alerts-count zero" id="alertsCount">0</span>
+    <span class="alerts-bar-label">manque(s) signalé(s) à l'opérateur de commande — cliquer pour dérouler</span>
+  </div>
+  <div class="alerts-list" id="alertsList"></div>
+
+  <div class="layout">
+    <div>
+      <div class="mini-calendar" id="miniCalendar"></div>
+      <div class="store" id="store"></div>
+      <div class="legend">
+        <span>Calme</span>
+        <span class="scale"></span>
+        <span>Forte affluence</span>
+      </div>
+    </div>
+
+    <div class="right-col">
+      <div class="panel" id="panel">
+        <p class="placeholder">Cliquez sur une zone du magasin pour voir ses recommandations.</p>
+      </div>
+
+      <div class="manager-calendar compact" id="managerCalendar">
+        <div class="mc-header">
+          <h2>Planning manager</h2>
+          <div class="view-toggle" id="viewToggle">
+            <button data-view="jour">J</button>
+            <button data-view="semaine">S</button>
+            <button data-view="mois">M</button>
+          </div>
+        </div>
+        <div class="cal-nav">
+          <button id="calPrev">‹</button>
+          <span class="cal-label" id="calLabel"></span>
+          <button id="calNext">›</button>
+        </div>
+        <div id="calBody"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rayon-detail" id="rayonDetail"></div>
+
+  <footer>Prototype conceptuel — données fictives, à construire avec les vraies données du magasin</footer>
+</div>
+
+<script>
+const ZONES = [
+  { id:"entree", cls:"z-entree", name:"Entrée magasin", score:58, produits:["Kits apéritif Coupe du Monde", "Fleurs et bouquets", "Promos du moment"],
+    recos:[
+      { tag:"promo", text:"Mettre en avant les produits \"spécial Coupe du Monde\" — zone la plus vue par tous les clients." }
+    ]},
+  { id:"caisses", cls:"z-caisses", name:"Zone caisses", score:71, produits:["Confiseries", "Piles et petits accessoires", "Produits frais à date courte"],
+    recos:[
+      { tag:"peremption", text:"Placer ici les produits proches de leur date limite en attente de caisse — rayon impulsif à forte visibilité." }
+    ]},
+  { id:"fruits", cls:"z-fruits", name:"Fruits & Légumes", score:44, produits:["Fruits de saison", "Légumes bio", "Fruits secs"],
+    recos:[
+      { tag:"affluence", text:"Affluence stable, pas de changement prioritaire cette semaine." }
+    ]},
+  { id:"boulangerie", cls:"z-boulangerie", name:"Boulangerie", score:63, produits:["Pains spéciaux", "Viennoiseries", "Pâtisseries"],
+    recos:[
+      { tag:"promo", text:"Bonne visibilité, zone adaptée pour une mise en avant d'un produit à marge plus élevée." }
+    ]},
+  { id:"tete", cls:"z-tete", name:"Tête de gondole", score:80, produits:["Bières et boissons Coupe du Monde", "Snacking apéritif", "Charcuterie"],
+    recos:[
+      { tag:"promo", text:"Zone la plus chaude du magasin — réservée aux opérations commerciales prioritaires du moment." },
+      { tag:"peremption", text:"Alternative : produits frais à écouler rapidement, forte visibilité garantie." }
+    ]},
+  { id:"boissons", cls:"z-boissons", name:"Boissons", score:74, produits:["Bières", "Sodas", "Eaux aromatisées"],
+    recos:[
+      { tag:"promo", text:"Affluence élevée liée aux matchs de la semaine — maintenir la mise en avant apéritif/boissons." }
+    ]},
+  { id:"epicerie", cls:"z-epicerie", name:"Épicerie", score:39, produits:["Pâtes et riz", "Conserves", "Huiles et condiments"],
+    recos:[
+      { tag:"affluence", text:"Zone plus calme — éviter d'y placer les produits à forte marge du moment." }
+    ]},
+  { id:"boucherie", cls:"z-boucherie", name:"Boucherie / Frais", score:52, produits:["Viandes du jour", "Volailles", "Plats préparés"],
+    recos:[
+      { tag:"peremption", text:"Quelques références proches de leur date limite — signalétique renforcée conseillée." }
+    ]},
+  { id:"fond", cls:"z-fond", name:"Fond de magasin", score:22, produits:["Produits d'entretien", "Bazar saisonnier", "Petit électroménager"],
+    recos:[
+      { tag:"affluence", text:"Zone la moins fréquentée — éviter d'y placer les produits sensibles à la péremption." }
+    ]},
+];
+
+function scoreColor(score){
+  if(score < 35) return "#E3ECE7";
+  if(score < 55) return "#F3E7C8";
+  if(score < 70) return "#EFCB8E";
+  return "#E3A98C";
+}
+
+const NIVEAUX = [
+  { label:"Niveau haut", mod:-4 },
+  { label:"Niveau des yeux", mod:16 },
+  { label:"Niveau bas", mod:-14 },
+];
+
+const ALLEES = ["A1","A2","A3","B1","B2","C1","C2","D1"];
+
+// ---- Lien avec le calendrier prévisionnel (même événements que app_calendrier_nicodis.html) ----
+const EVENT_SENSITIVE_ZONES = ["entree", "tete", "boissons"];
+const UPCOMING_EVENTS = [
+  { date:"2026-07-09", nom:"Quart de finale", boost:18 },
+  { date:"2026-07-14", nom:"Fête Nationale + Demi-finale", boost:34 },
+  { date:"2026-07-19", nom:"Finale de la Coupe du Monde", boost:30 },
+];
+const TODAY = new Date(2026,6,3); // 3 juillet 2026, cohérent avec le calendrier prévisionnel
+
+function nextRelevantEvent(){
+  let best = null;
+  UPCOMING_EVENTS.forEach(e => {
+    const d = new Date(e.date);
+    const diffDays = Math.round((d - TODAY) / (1000*60*60*24));
+    if(diffDays >= 0 && diffDays <= 10 && (!best || diffDays < best.diffDays)){
+      best = { ...e, diffDays };
+    }
+  });
+  return best;
+}
+
+function renderMiniCalendar(){
+  const soonest = nextRelevantEvent();
+  const chips = UPCOMING_EVENTS.map(e => {
+    const d = new Date(e.date);
+    const diffDays = Math.round((d - TODAY) / (1000*60*60*24));
+    const dateLabel = d.toLocaleDateString("fr-FR", { day:"numeric", month:"short" });
+    const countLabel = diffDays < 0 ? "passé" : diffDays === 0 ? "aujourd'hui" : `dans ${diffDays} j`;
+    const isNext = soonest && soonest.date === e.date;
+    return `
+      <div class="mc-chip ${isNext ? 'next' : ''}">
+        <div class="mc-date">${dateLabel}</div>
+        <div class="mc-name">${e.nom}</div>
+        <div class="mc-count">${countLabel} · calendrier prévisionnel</div>
+      </div>
+    `;
+  }).join("");
+  document.getElementById("miniCalendar").innerHTML = `<div class="mc-title">Événements liés au calendrier prévisionnel</div>${chips}`;
+}
+renderMiniCalendar();
+
+function seeded(seed){ let s = seed; return () => { s = (s*9301+49297)%233280; return s/233280; }; }
+
+function subzonesFor(zone){
+  const rnd = seeded(zone.name.length * 37 + 5);
+  return NIVEAUX.map((n, i) => {
+    const score = Math.max(5, Math.min(98, Math.round(zone.score + n.mod + (rnd()*10-5))));
+    const produit = zone.produits[i % zone.produits.length];
+    let tag = "affluence", text = `Placement standard pour "${produit}".`;
+    if(score >= 65){ tag = "promo"; text = `Emplacement à forte visibilité — bon niveau pour mettre en avant "${produit}".`; }
+    else if(score < 30){ tag = "peremption"; text = `Faible visibilité — éviter d'y laisser des produits à date courte comme "${produit}".`; }
+    return { label:n.label, score, tag, text };
+  });
+}
+
+function stockFor(zone){
+  const rnd = seeded(zone.name.length * 53 + 11);
+  const event = EVENT_SENSITIVE_ZONES.includes(zone.id) ? nextRelevantEvent() : null;
+  const items = [];
+  NIVEAUX.forEach((n, ni) => {
+    zone.produits.forEach((produit, pi) => {
+      const stock = Math.round(rnd()*40);
+      const seuil = 10 + Math.round(rnd()*8);
+      let statut = "ok";
+      if(stock === 0) statut = "rupture";
+      else if(stock < seuil) statut = "bas";
+      const priority = event && statut !== "ok";
+      items.push({
+        id: `${zone.id}-${ni}-${pi}`,
+        niveau: n.label,
+        nom: produit,
+        stock, seuil, statut,
+        allee: ALLEES[Math.floor(rnd()*ALLEES.length)],
+        rangee: 1 + Math.floor(rnd()*4),
+        priority, event: priority ? event : null,
+      });
+    });
+  });
+  return items.slice(0, 6); // rester sommaire : 6 produits par rayon
+}
+
+const comments = {}; // en mémoire uniquement, pour la durée de la démo
+const alerts = [];   // signalements manque -> opérateur de commande, en mémoire
+
+function renderAlertsBar(){
+  document.getElementById("alertsCount").textContent = alerts.length;
+  document.getElementById("alertsCount").classList.toggle("zero", alerts.length === 0);
+  const sorted = alerts.slice().sort((a,b) => (b.priority ? 1 : 0) - (a.priority ? 1 : 0));
+  document.getElementById("alertsList").innerHTML = sorted.map(a => `
+    <div class="alert-entry" style="${a.priority ? 'border-left-color:var(--event); background:#FBEDE7;' : ''}">
+      <div class="ae-meta">${a.time} · ${a.zone}${a.priority ? ' · 🔥 PRIORITÉ — pic prévu bientôt' : ''}</div>
+      "${a.produit}" (${a.allee} / rangée ${a.rangee}) — signalé à l'opérateur de commande
+    </div>
+  `).join("") || `<div class="alert-entry" style="border-left-color:var(--reassort);">Aucun manque signalé pour le moment.</div>`;
+}
+renderAlertsBar();
+
+document.getElementById("alertsBar").addEventListener("click", () => {
+  document.getElementById("alertsList").classList.toggle("open");
+});
+
+const store = document.getElementById("store");
+ZONES.forEach(z => {
+  const div = document.createElement("div");
+  div.className = `zone ${z.cls}`;
+  div.style.background = scoreColor(z.score);
+  div.dataset.id = z.id;
+  div.innerHTML = `<span class="zone-name">${z.name}</span><span class="zone-score">${z.score}</span>`;
+  div.addEventListener("click", () => selectZone(z.id));
+  store.appendChild(div);
+});
+
+function selectZone(id){
+  document.querySelectorAll(".zone").forEach(el => el.classList.toggle("selected", el.dataset.id === id));
+  const z = ZONES.find(z => z.id === id);
+
+  let html = `
+    <div class="panel-title">${z.name}</div>
+    <div class="panel-score">Score d'affluence estimé : ${z.score}/100</div>
+  `;
+  z.recos.forEach(r => {
+    const labels = { promo:"Promotion", peremption:"Péremption proche", affluence:"Affluence" };
+    html += `<div class="reco ${r.tag}"><div class="reco-tag">${labels[r.tag]}</div><div class="reco-text">${r.text}</div></div>`;
+  });
+  document.getElementById("panel").innerHTML = html;
+
+  renderRayonDetail(z);
+}
+
+function renderRayonDetail(z){
+  const labels = { promo:"Promotion", peremption:"Péremption proche", affluence:"Affluence" };
+  const sub = subzonesFor(z);
+  const log = comments[z.id] || [];
+  const stock = stockFor(z);
+
+  const subHtml = sub.map(s => `
+    <div class="subzone" style="background:${scoreColor(s.score)};">
+      <div class="subzone-name">${s.label}</div>
+      <div class="subzone-score">${s.score}</div>
+      <div class="subzone-reco"><span class="rt">${labels[s.tag]}</span>${s.text}</div>
+    </div>
+  `).join("");
+
+  const logHtml = log.map(c => `
+    <div class="comment-entry"><div class="ce-meta">${c.role} · ${c.time}</div>${c.text}</div>
+  `).join("");
+
+  const badgeLabel = { ok:"Stock OK", bas:"Stock bas", rupture:"Rupture" };
+  const stockHtml = stock.map(it => `
+    <div class="stock-item ${it.priority ? 'priority' : ''}" data-item="${it.id}">
+      <div>
+        <div class="stock-name">${it.nom}</div>
+        <div class="stock-loc">${it.niveau} · Allée ${it.allee} / Rangée ${it.rangee}</div>
+        ${it.priority ? `<span class="priority-flag">🔥 Priorité haute — ${it.event.nom} dans ${it.event.diffDays} jour${it.event.diffDays>1?'s':''}</span>` : ""}
+      </div>
+      <div class="stock-qty">${it.stock} / seuil ${it.seuil}</div>
+      <span class="stock-badge ${it.statut}">${badgeLabel[it.statut]}</span>
+      <button class="signal-btn" data-id="${it.id}" data-zone="${z.name}" data-nom="${it.nom}" data-allee="${it.allee}" data-rangee="${it.rangee}" data-priority="${it.priority ? '1':'0'}">
+        Signaler un manque
+      </button>
+    </div>
+  `).join("");
+
+  document.getElementById("rayonDetail").innerHTML = `
+    <div class="rd-title">Détail du rayon — ${z.name}</div>
+    <div class="rd-sub">Découpage en sous-zones (niveaux de linéaire), chacune avec sa propre estimation d'affluence et sa recommandation.</div>
+    <div class="subzones">${subHtml}</div>
+
+    <div class="stock-section">
+      <div class="stock-section-title">Gestion de stock — lien entrepôt</div>
+      ${stockHtml}
+    </div>
+
+    <div class="comment-block">
+      <label>Commentaire chef de rayon / modérateur</label>
+      <textarea id="commentInput" placeholder="Ex. : le niveau bas est difficile d'accès pour les clients en fauteuil, éviter d'y placer les promos prioritaires..."></textarea>
+      <div class="comment-row">
+        <span class="comment-status" id="commentStatus"></span>
+        <button id="saveComment">Enregistrer le commentaire</button>
+      </div>
+      <div class="comment-log">${logHtml}</div>
+    </div>
+
+    <div class="future-note">
+      Lien actif avec le calendrier prévisionnel : les produits sensibles aux événements (entrée,
+      tête de gondole, boissons) sont automatiquement mis en priorité s'ils sont en stock bas ou en
+      rupture à l'approche d'un pic prévu (ex. Coupe du Monde, Fête Nationale). Le reste du
+      croisement (réassort automatique, planning) reste une évolution future, non couverte ici.
+    </div>
+  `;
+  document.getElementById("rayonDetail").classList.add("open");
+
+  document.getElementById("saveComment").addEventListener("click", () => {
+    const input = document.getElementById("commentInput");
+    const text = input.value.trim();
+    if(!text) return;
+    if(!comments[z.id]) comments[z.id] = [];
+    comments[z.id].push({ role:"Chef de rayon", time:"à l'instant", text });
+    document.getElementById("commentStatus").textContent = "Commentaire enregistré ✓";
+    renderRayonDetail(z);
+  });
+
+  document.querySelectorAll(".signal-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      alerts.push({
+        produit: btn.dataset.nom, zone: btn.dataset.zone,
+        allee: btn.dataset.allee, rangee: btn.dataset.rangee, time:"à l'instant",
+        priority: btn.dataset.priority === "1"
+      });
+      btn.textContent = "Signalé ✓";
+      btn.classList.add("done");
+      btn.disabled = true;
+      renderAlertsBar();
+    });
+  });
+}
+
+// ============ Planning manager : jour / semaine / mois ============
+const MOIS_LABEL = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+const JOURS_LABEL = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
+
+const EVENT_BY_DATE = Object.fromEntries(UPCOMING_EVENTS.map(e => [e.date, e]));
+const todos = {}; // dateKey -> [{text, done}]
+
+let calView = "mois";
+let calDate = new Date(2026,6,3); // même repère que TODAY
+
+function keyFromDate(d){
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function sameDay(a,b){ return keyFromDate(a) === keyFromDate(b); }
+function startOfWeek(d){
+  const dow = (d.getDay()+6)%7; // lundi=0
+  const s = new Date(d); s.setDate(d.getDate()-dow); return s;
+}
+
+function todoListHtml(key){
+  const items = todos[key] || [];
+  const list = items.length
+    ? items.map((t,i) => `
+        <label class="todo-item ${t.done?'done':''}">
+          <input type="checkbox" data-key="${key}" data-idx="${i}" ${t.done?'checked':''}>
+          <span class="todo-text">${t.text}</span>
+        </label>`).join("")
+    : `<div class="todo-empty">Aucune note du manager pour ce jour.</div>`;
+  return `
+    ${list}
+    <div class="todo-add">
+      <input type="text" placeholder="Ajouter une note manager..." data-add="${key}">
+      <button data-addbtn="${key}">Ajouter</button>
+    </div>
+  `;
+}
+
+function updateCalLabel(){
+  const label = document.getElementById("calLabel");
+  if(calView === "mois"){
+    label.textContent = `${MOIS_LABEL[calDate.getMonth()]} ${calDate.getFullYear()}`;
+  } else if(calView === "semaine"){
+    const s = startOfWeek(calDate); const e = new Date(s); e.setDate(s.getDate()+6);
+    label.textContent = `${s.getDate()} ${MOIS_LABEL[s.getMonth()].slice(0,3)} — ${e.getDate()} ${MOIS_LABEL[e.getMonth()].slice(0,3)}`;
+  } else {
+    label.textContent = `${JOURS_LABEL[calDate.getDay()]} ${calDate.getDate()} ${MOIS_LABEL[calDate.getMonth()]}`;
+  }
+}
+
+function monthViewHtml(){
+  const y = calDate.getFullYear(), m = calDate.getMonth();
+  const firstDow = (new Date(y,m,1).getDay()+6)%7;
+  const daysInMonth = new Date(y,m+1,0).getDate();
+  let html = `<div class="cal-weekdays"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div><div class="cal-grid">`;
+  for(let i=0;i<firstDow;i++) html += `<div class="cal-day empty"></div>`;
+  for(let d=1; d<=daysInMonth; d++){
+    const date = new Date(y,m,d);
+    const key = keyFromDate(date);
+    const ev = EVENT_BY_DATE[key];
+    const count = (todos[key]||[]).filter(t=>!t.done).length;
+    html += `
+      <div class="cal-day ${sameDay(date,TODAY)?'today':''} ${ev?'has-event':''}" data-key="${key}">
+        <span class="cd-num">${d}</span>
+        ${ev ? `<div class="cd-event-label">${ev.nom.split(" — ")[0].slice(0,18)}</div>` : ""}
+        ${count ? `<span class="cd-todo-count">${count}</span>` : ""}
+      </div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function weekViewHtml(){
+  const s = startOfWeek(calDate);
+  let html = `<div class="cal-week-grid">`;
+  for(let i=0;i<7;i++){
+    const date = new Date(s); date.setDate(s.getDate()+i);
+    const key = keyFromDate(date);
+    const ev = EVENT_BY_DATE[key];
+    html += `
+      <div class="cal-week-col ${sameDay(date,TODAY)?'today':''} ${ev?'has-event':''}">
+        <div class="cwc-date">${JOURS_LABEL[date.getDay()].slice(0,3)} ${date.getDate()}</div>
+        ${ev ? `<div class="cwc-event">${ev.nom.split(" — ")[0]}</div>` : ""}
+        ${todoListHtml(key)}
+      </div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function dayViewHtml(){
+  const key = keyFromDate(calDate);
+  const ev = EVENT_BY_DATE[key];
+  return `
+    <div class="day-view">
+      <div class="dv-date">${JOURS_LABEL[calDate.getDay()]} ${calDate.getDate()} ${MOIS_LABEL[calDate.getMonth()]}</div>
+      ${ev ? `<div class="dv-event">${ev.nom}</div>` : ""}
+      ${todoListHtml(key)}
+    </div>
+  `;
+}
+
+function attachCalEvents(){
+  document.querySelectorAll(".cal-day[data-key]").forEach(el => {
+    el.addEventListener("click", () => {
+      const [y,m,d] = el.dataset.key.split("-").map(Number);
+      calDate = new Date(y, m-1, d);
+      calView = "jour";
+      renderManagerCalendar();
+    });
+  });
+  document.querySelectorAll("input[type=checkbox][data-key]").forEach(cb => {
+    cb.addEventListener("change", () => {
+      const key = cb.dataset.key, idx = +cb.dataset.idx;
+      todos[key][idx].done = cb.checked;
+      renderManagerCalendar();
+    });
+  });
+  document.querySelectorAll("[data-addbtn]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.addbtn;
+      const input = document.querySelector(`input[data-add="${key}"]`);
+      const text = input.value.trim();
+      if(!text) return;
+      if(!todos[key]) todos[key] = [];
+      todos[key].push({ text, done:false });
+      renderManagerCalendar();
+    });
+  });
+  document.querySelectorAll("input[data-add]").forEach(input => {
+    input.addEventListener("keydown", (e) => {
+      if(e.key === "Enter") document.querySelector(`[data-addbtn="${input.dataset.add}"]`).click();
+    });
+  });
+}
+
+function renderManagerCalendar(){
+  document.querySelectorAll("#viewToggle button").forEach(b => b.classList.toggle("active", b.dataset.view === calView));
+  updateCalLabel();
+  const body = document.getElementById("calBody");
+  if(calView === "mois") body.innerHTML = monthViewHtml();
+  else if(calView === "semaine") body.innerHTML = weekViewHtml();
+  else body.innerHTML = dayViewHtml();
+  attachCalEvents();
+}
+
+document.querySelectorAll("#viewToggle button").forEach(btn => {
+  btn.addEventListener("click", () => { calView = btn.dataset.view; renderManagerCalendar(); });
+});
+document.getElementById("calPrev").addEventListener("click", () => {
+  if(calView==="mois") calDate.setMonth(calDate.getMonth()-1);
+  else if(calView==="semaine") calDate.setDate(calDate.getDate()-7);
+  else calDate.setDate(calDate.getDate()-1);
+  renderManagerCalendar();
+});
+document.getElementById("calNext").addEventListener("click", () => {
+  if(calView==="mois") calDate.setMonth(calDate.getMonth()+1);
+  else if(calView==="semaine") calDate.setDate(calDate.getDate()+7);
+  else calDate.setDate(calDate.getDate()+1);
+  renderManagerCalendar();
+});
+
+renderManagerCalendar();
+</script>
+</body>
+</html>
